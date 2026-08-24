@@ -42,7 +42,7 @@
   /* NAV — sticky, blur, CTA */
   nav{display:flex;align-items:center;justify-content:space-between;padding:16px clamp(20px,5vw,48px);position:sticky;top:0;background:rgba(10,14,12,.72);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%);z-index:30;border-bottom:1px solid var(--line);transition:.3s}
   .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.14rem;letter-spacing:-.01em}
-  .brand .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent),0 0 26px var(--accent)}
+  .brand .logo-ic{width:30px;height:30px;border-radius:9px;object-fit:cover;background:#16201b;border:1px solid var(--line);padding:2px}
   .brand small{font-weight:500;color:var(--muted);font-size:.74rem;text-transform:uppercase;letter-spacing:.14em}
   .nav-links{display:flex;gap:28px;align-items:center}
   .nav-links a{color:var(--muted);text-decoration:none;font-size:.9rem;font-weight:600;position:relative;padding:4px 0;transition:color .2s}
@@ -165,7 +165,7 @@
 <canvas id="fx" aria-hidden="true"></canvas>
 
 <nav>
-  <div class="brand"><span class="dot"></span>GeoDrive <small>· автосервис</small></div>
+  <div class="brand"><img class="logo-ic" src="img/logo.png" alt="GeoDrive">GeoDrive <small>· автосервис</small></div>
   <div class="nav-links">
     <a href="#services">Услуги</a>
     <a href="#why">Почему мы</a>
