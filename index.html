@@ -136,8 +136,14 @@
   footer a{color:var(--muted);text-decoration:none;margin-left:14px}
   footer a:hover{color:var(--accent)}
 
-  /* ---- scroll-driven car breakdown ---- */
+  /* ---- scroll-driven car breakdown (2D SVG fallback) ---- */
   #ascroll .scroll-stage{position:relative;margin:clamp(24px,5vw,48px) auto 0;max-width:520px}
+  #carSvg{width:100%;height:auto;display:block;filter:drop-shadow(0 20px 40px rgba(0,0,0,.5))}
+  /* 3D container (Three.js) — hidden unless WebGL available */
+  .car3d{display:none;width:100%;height:420px;background:transparent}
+  body.has-3d .car3d{display:block}
+  body.has-3d #carSvg{display:none}
+
   #carSvg{width:100%;height:auto;display:block;filter:drop-shadow(0 20px 40px rgba(0,0,0,.5))}
   #carSvg .pv{transition:opacity .25s ease,transform .25s ease}
   /* nodes hidden until revealed by scroll progress */
@@ -235,6 +241,7 @@
     <h2>Что мы проверим</h2>
     <p class="sub">Листайте вниз — иллюстрация по шагам раскрывает основные узлы, которые мы диагностируем.</p>
     <div class="scroll-stage">
+      <div id="car3d" class="car3d"></div>
       <svg id="carSvg" viewBox="0 0 460 200" aria-hidden="true" role="img">
         <!-- ground -->
         <line class="pv ground" x1="20" y1="188" x2="440" y2="188" />
@@ -247,7 +254,7 @@
         <path class="pv engine" d="M238 96 c6 -10 24 -10 30 0 l2 12 h-34 z" />
         <circle class="pv lamp" cx="86" cy="60" r="4" />
       </svg>
-      <div class="car-caption">Узлы автомобиля</div>
+      <div class="car-caption" id="carCaption">Узлы автомобиля</div>
     </div>
   </div>
 </section>
@@ -457,6 +464,126 @@
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onScroll);
   onScroll();
+})();
+</script>
+
+<script>
+// ---------- Three.js low-poly car (progressive enhancement over the SVG) ----------
+(function(){
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const container = document.getElementById("car3d");
+  // WebGL support check
+  let webgl = false;
+  try{ const t = document.createElement("canvas"); webgl = !!(window.WebGLRenderingContext && (t.getContext("webgl") || t.getContext("experimental-webgl"))); }catch(e){ webgl = false; }
+  if(reduce || !webgl || !container) return;  // keep the SVG fallback
+
+  const loader = document.createElement("script");
+  loader.src = "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js";
+  loader.onload = function(){
+    try{ init3D(); }catch(e){ /* fallback to SVG stays */ }
+  };
+  document.head.appendChild(loader);
+
+  let scene, camera, renderer, carGroup, nodeMarkers = [], captionEl, section;
+  let currentStg = 0;
+  const STAGES = [
+    "Узлы автомобиля",
+    "Кузов и крыша",
+    "Колёса и ходовая",
+    "Двигатель",
+    "Открытый капот — диагностика готова"
+  ];
+
+  function init3D(){
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(6, 3.6, 9);
+    camera.lookAt(0, 0.6, 0);
+    renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.setSize(1, 1);
+    container.appendChild(renderer.domElement);
+
+    // lights
+    const a = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(a);
+    const d = new THREE.DirectionalLight(0xffffff, 1.1);
+    d.position.set(6, 10, 8); scene.add(d);
+    const d2 = new THREE.DirectionalLight(0x2bd47c, 0.35);
+    d2.position.set(-5, 4, -6); scene.add(d2);
+
+    // car group
+    carGroup = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.7, 2.2), new THREE.MeshStandardMaterial({ color:0x2a332d, roughness:.4, metalness:.5 }));
+    body.position.y = 0.85; carGroup.add(body);
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.22, 1.9), new THREE.MeshStandardMaterial({ color:0x1c241f }));
+    hood.position.set(1.9, 1.06, 0); carGroup.add(hood); // engine bay / hood
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.05, 1.9), new THREE.MeshStandardMaterial({ color:0x2bd47c, roughness:.35, metalness:.6 }));
+    roof.position.set(-0.4, 1.55, 0); carGroup.add(roof);
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.85), new THREE.MeshStandardMaterial({ color:0x9ad8bc }));
+    glass.rotation.y = Math.PI/2; glass.position.set(-0.4, 1.62, 0.96); carGroup.add(glass);
+
+    // wheels
+    const wheelGeo = new THREE.CylinderGeometry(0.62, 0.62, 0.35, 18);
+    const wheelMat = new THREE.MeshStandardMaterial({ color:0x0a0e0c, roughness:.7 });
+    const w1 = new THREE.Mesh(wheelGeo, wheelMat); w1.rotation.z = Math.PI/2; w1.position.set(-1.5, 0.62, 1.1); carGroup.add(w1);
+    const w2 = new THREE.Mesh(wheelGeo, wheelMat); w2.rotation.z = Math.PI/2; w2.position.set(-1.5, 0.62, -1.1); carGroup.add(w2);
+    const w3 = new THREE.Mesh(wheelGeo, wheelMat); w3.rotation.z = Math.PI/2; w3.position.set(1.7, 0.62, 1.1); carGroup.add(w3);
+    const w4 = new THREE.Mesh(wheelGeo, wheelMat); w4.rotation.z = Math.PI/2; w4.position.set(1.7, 0.62, -1.1); carGroup.add(w4);
+
+    // node markers (engine, wheels, glass) — small glowing spheres
+    function marker(pos, color){ const s = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), new THREE.MeshStandardMaterial({ color: color===undefined?0x2bd47c:color, emissive: color===undefined?0x2bd47c:0x000000, emissiveIntensity:.6 })); s.position.set(pos[0],pos[1],pos[2]); carGroup.add(s); nodeMarkers.push(s); return s; }
+    marker([2.4, 1.35, 0]);       // engine
+    marker([-1.5, 0.62, 1.1], 0x7ad99f); marker([-1.5,0.62,-1.1],0x7ad99f); marker([1.7,0.62,1.1],0x7ad99f); marker([1.7,0.62,-1.1],0x7ad99f); // wheels
+    marker([-0.4, 1.62, 0.96], 0x9ad8bc); // glass/roof
+
+    // store per-marker stage (1..4)
+    nodeMarkers[0].stage = 3;  // engine appears at stage 3
+    [1,2,3,4].forEach(i=>{ nodeMarkers[i].stage = 2; }); // wheels at stage 2
+    nodeMarkers[5].stage = 1; // roof/glass at stage 1
+
+    scene.add(carGroup);
+
+    section = document.getElementById("ascroll");
+    captionEl = document.getElementById("carCaption");
+    document.body.classList.add("has-3d");
+
+    function size(){
+      const w = container.clientWidth || 520, h = container.clientHeight || 420;
+      container.style.height = h + "px";
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener("resize", size);
+    size();
+
+    function applyStage(stg){
+      nodeMarkers.forEach(m => { m.visible = stg >= m.stage; });
+      // hood (engine bay) lifts/lights when reached
+      if(captionEl) captionEl.textContent = STAGES[stg];
+      if(stg >= 3) hood.material.emissive = new THREE.Color(0x2bd47c), hood.material.emissiveIntensity = .35; else hood.material.emissiveIntensity = 0;
+    }
+
+    function onScroll(){
+      if(!section) return;
+      const r = section.getBoundingClientRect(); const vh = window.innerHeight;
+      const prog = 1 - Math.max(0, Math.min(1, (r.top - vh*.4) / (vh*.7)));
+      const stg = Math.min(4, Math.max(0, Math.round(prog*4)));
+      // continuous rotation tied to scroll
+      carGroup.rotation.y = prog * Math.PI * 2;
+      if(stg !== currentStg){ currentStg = stg; applyStage(stg); }
+    }
+    window.addEventListener("scroll", onScroll, { passive:true });
+    window.addEventListener("resize", onScroll);
+
+    renderer.setAnimationLoop(render);
+    function render(){ renderer.render(scene, camera); }
+
+    document.addEventListener("visibilitychange", () => {
+      if(document.hidden){ renderer.setAnimationLoop(null); } else { renderer.setAnimationLoop(render); }
+    });
+    onScroll();
+  }
 })();
 </script>
 </body>
